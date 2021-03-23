@@ -1,7 +1,3 @@
-// #![feature(allocator_api)]
-
-extern crate core;
-
 use core::alloc::Layout;
 use core::{mem, ptr};
 use std::alloc;
@@ -676,8 +672,7 @@ mod tests {
         }
     }
 
-    extern crate time;
-    use self::time::PreciseTime;
+    use std::time::Instant;
     use std::sync::mpsc::sync_channel;
 
     #[test]
@@ -687,20 +682,20 @@ mod tests {
 
         let (p, c) = make(iterations as usize);
 
-        let start = PreciseTime::now();
+        let start = Instant::now();
         for i in 0..iterations as usize {
             p.push(i);
         }
         let t = c.pop();
         assert!(t == 0);
-        let end = PreciseTime::now();
+        let end = Instant::now();
         let throughput =
-            (iterations as f64 / (start.to(end)).num_nanoseconds().unwrap() as f64) * 1000000000f64;
+            (iterations as f64 / (end - start).as_nanos() as f64) * 1000000000f64;
         println!(
             "Spsc Throughput: {}/s -- (iterations: {} in {} ns)",
             throughput,
             iterations,
-            (start.to(end)).num_nanoseconds().unwrap()
+            (end - start).as_nanos()
         );
     }
 
@@ -711,20 +706,20 @@ mod tests {
 
         let (tx, rx) = sync_channel(iterations as usize);
 
-        let start = PreciseTime::now();
+        let start = Instant::now();
         for i in 0..iterations as usize {
             tx.send(i).unwrap();
         }
         let t = rx.recv().unwrap();
         assert!(t == 0);
-        let end = PreciseTime::now();
+        let end = Instant::now();
         let throughput =
-            (iterations as f64 / (start.to(end)).num_nanoseconds().unwrap() as f64) * 1000000000f64;
+            (iterations as f64 / (end - start).as_nanos() as f64) * 1000000000f64;
         println!(
             "Chan Throughput: {}/s -- (iterations: {} in {} ns)",
             throughput,
             iterations,
-            (start.to(end)).num_nanoseconds().unwrap()
+            (end - start).as_nanos()
         );
     }
 
