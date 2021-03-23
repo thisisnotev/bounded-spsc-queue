@@ -12,3 +12,5 @@
 /.criterion/
 .DS_Store
 Cargo.lock
+
+.vscode/

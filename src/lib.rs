@@ -1,4 +1,4 @@
-#![feature(allocator_api)]
+// #![feature(allocator_api)]
 
 extern crate core;
 
@@ -29,7 +29,7 @@ pub struct Buffer<T> {
     buffer: *mut T,
 
     /// The bounded size as specified by the user.  If the queue reaches capacity, it will block
-    /// until values are poppped off.
+    /// until values are popped off.
     capacity: usize,
 
     /// The allocated size of the ring buffer, in terms of number of values (not physical memory).
@@ -216,8 +216,7 @@ impl<T> Buffer<T> {
     /// buffer wrapping is handled inside the method.
     #[inline]
     unsafe fn load(&self, pos: usize) -> &T {
-        &*self.buffer
-            .offset((pos & (self.allocated_size - 1)) as isize)
+        &*self.buffer.add(pos & (self.allocated_size - 1))
     }
 
     /// Store a value in the buffer
@@ -228,8 +227,7 @@ impl<T> Buffer<T> {
     /// - Initialized a valid block of memory
     #[inline]
     unsafe fn store(&self, pos: usize, v: T) {
-        let end = self.buffer
-            .offset((pos & (self.allocated_size - 1)) as isize);
+        let end = self.buffer.add(pos & (self.allocated_size - 1));
         ptr::write(&mut *end, v);
     }
 }
@@ -242,7 +240,7 @@ impl<T> Drop for Buffer<T> {
 
         // TODO this could be optimized to avoid the atomic operations / book-keeping...but
         // since this is the destructor, there shouldn't be any contention... so meh?
-        while let Some(_) = self.try_pop() {}
+        while self.try_pop().is_some() {}
 
         unsafe {
             let layout = Layout::from_size_align(
@@ -293,7 +291,7 @@ impl<T> Drop for Buffer<T> {
 ///   }
 /// });
 ///
-/// // Back in the first thread, start Pop'ing values off the queue
+/// // Back in the first thread, start popping values off the queue
 /// for i in 0..100000 {
 ///   let t = c.pop();
 ///   assert!(t == i);
@@ -329,7 +327,7 @@ pub fn make<T>(capacity: usize) -> (Producer<T>, Consumer<T>) {
             buffer: arc.clone(),
         },
         Consumer {
-            buffer: arc.clone(),
+            buffer: arc,
         },
     )
 }
@@ -641,10 +639,8 @@ mod tests {
         }
 
         match p.try_push(10) {
-            Some(v) => {
-                assert!(v == 10);
-            }
-            None => assert!(false, "Queue should not have accepted another write!"),
+            Some(v) => assert!(v == 10),
+            None => panic!("Queue should not have accepted another write!"),
         }
     }
 
@@ -652,22 +648,16 @@ mod tests {
     fn test_try_poll() {
         let (p, c) = super::make(10);
 
-        match c.try_pop() {
-            Some(_) => assert!(false, "Queue was empty but a value was read!"),
-            None => {}
-        }
+        assert!(c.try_pop().is_none(), "Queue was empty but a value was returned!");
 
         p.push(123);
 
         match c.try_pop() {
             Some(v) => assert!(v == 123),
-            None => assert!(false, "Queue was not empty but poll() returned nothing!"),
+            None => panic!("Queue was not empty but poll() returned nothing!"),
         }
 
-        match c.try_pop() {
-            Some(_) => assert!(false, "Queue was empty but a value was read!"),
-            None => {}
-        }
+        assert!(c.try_pop().is_none(), "Queue was empty but a value was returned!");
     }
 
     #[test]
